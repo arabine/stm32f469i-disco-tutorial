@@ -245,6 +245,7 @@ static void HAL_FMC_MspInit(void){
 void HAL_SDRAM_MspInit(SDRAM_HandleTypeDef* sdramHandle){
   /* USER CODE BEGIN SDRAM_MspInit 0 */
 
+    (void) sdramHandle;
   /* USER CODE END SDRAM_MspInit 0 */
   HAL_FMC_MspInit();
   /* USER CODE BEGIN SDRAM_MspInit 1 */
@@ -356,6 +357,7 @@ static void HAL_FMC_MspDeInit(void){
 void HAL_SDRAM_MspDeInit(SDRAM_HandleTypeDef* sdramHandle){
   /* USER CODE BEGIN SDRAM_MspDeInit 0 */
 
+    (void) sdramHandle;
   /* USER CODE END SDRAM_MspDeInit 0 */
   HAL_FMC_MspDeInit();
   /* USER CODE BEGIN SDRAM_MspDeInit 1 */

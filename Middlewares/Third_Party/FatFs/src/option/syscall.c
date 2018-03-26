@@ -64,7 +64,7 @@ int ff_cre_syncobj (	/* 1:Function succeeded, 0:Could not create the sync object
 	_SYNC_t *sobj		/* Pointer to return the created sync object */
 )
 {
-
+    (void) vol;
     int ret;
 
     osSemaphoreDef(SEM);

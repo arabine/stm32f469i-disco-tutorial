@@ -384,6 +384,8 @@ __weak void BSP_SDRAM_MspInit(SDRAM_HandleTypeDef  *hsdram, void *Params)
   static DMA_HandleTypeDef dma_handle;
   GPIO_InitTypeDef gpio_init_structure;
 
+  (void) Params;
+
   if(hsdram != (SDRAM_HandleTypeDef  *)NULL)
   {
     /* Enable FMC clock */
@@ -489,6 +491,8 @@ __weak void BSP_SDRAM_MspInit(SDRAM_HandleTypeDef  *hsdram, void *Params)
 __weak void BSP_SDRAM_MspDeInit(SDRAM_HandleTypeDef  *hsdram, void *Params)
 {
     static DMA_HandleTypeDef dma_handle;
+
+    (void) Params;
 
     if(hsdram != (SDRAM_HandleTypeDef  *)NULL)
     {
