@@ -7,7 +7,7 @@
 # DEFAULT DEFINITIONS
 # These definitions can be overloaded from the command line
 # *******************************************************************************
-PROJECT		?= example
+PROJECT		?= $(MAKECMDGOALS)
 TARGET 		?= release
 BOARD 		?= host
 OPTIM 		?= high
@@ -36,6 +36,7 @@ LIB_STM32F4XX_HAL	:= Drivers/STM32F4xx_HAL_Driver
 LIB_469I_DISCO_BSP 	:= Drivers/BSP
 LIB_CMSIS 			:= Drivers/CMSIS
 LIB_DRIVERS			:= Drivers/Components/ft6x06 Drivers/Components/otm8009a
+LIB_LCD				:= Drivers/liblcd
 LIB_FREERTOS		:= Middlewares/Third_Party/FreeRTOS
 LIB_FATFS			:= Middlewares/Third_Party/FatFs
 LIB_USB_HOST		:= Middlewares/ST/STM32_USB_Host_Library
@@ -61,12 +62,13 @@ endif
 # *******************************************************************************
 ifeq ($(PROJECT), lcd)
 
-DEFINES += -DDEBUG=0
+DEFINES += -DUSE_HAL_DRIVER -DSTM32F469xx -DTS_MULTI_TOUCH_SUPPORTED=1
+GCC_PREFIX := arm-none-eabi-
 
-APP_MODULES 	:= 
+APP_MODULES 	:= projects/lcd $(LIB_ALL) $(LIB_LCD)
 APP_LIBPATH 	:= 
 APP_LIBS 		:= 
-
+APP_LDSCRIPT	:= STM32F469NIHx_FLASH.ld
 endif
 
 # *******************************************************************************
@@ -74,15 +76,19 @@ endif
 # *******************************************************************************
 include build/Main.mk
 
-#	$(call linker, $(OBJECTS), $(APP_LIBS), $(PROJECT))
+blinky: $(OBJECTS)
+	$(call linker, $(OBJECTS), $(APP_LIBS), blinky)
+
+lcd: $(OBJECTS)
+	$(call linker, $(OBJECTS), $(APP_LIBS), lcd_logo)
+
+flash:
+	st-flash --serial 303636424646333533353335344433 --format ihex write $(OUTDIR)$(PROJECT).hex
 
 clean:
 	@echo "Cleaning generated files..."
-	$(VERBOSE) $(RM) -rf $(OBJECTS) $(OUTDIR)/*.d $(OUTDIR)/*.gcov $(OUTDIR)/*.gcov.htm
+	$(VERBOSE) $(RM) -rf $(OBJECTS) $(OUTDIR)*.d $(OUTDIR)*.gcov $(OUTDIR)*.gcov.htm
 
-wipe:
-	@echo "Wiping output directory..."
-	$(VERBOSE) $(RM) -rf $(OUTDIR)
 
 
 # *******************************************************************************

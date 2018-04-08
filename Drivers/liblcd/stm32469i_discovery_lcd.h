@@ -51,7 +51,7 @@
 /* Include SDRAM Driver */
 #include "stm32469i_discovery_sdram.h"
 #include "stm32469i_discovery.h"
-#include "../../Utilities/Fonts/fonts.h"
+#include "fonts.h"
 
 #include <string.h> /* use of memset() */
 

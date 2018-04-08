@@ -3,9 +3,7 @@ LOCAL_DIR = $(call my-dir)/
 
 SOURCES += $(addprefix $(LOCAL_DIR), stm32469i_discovery.c \
 stm32469i_discovery_eeprom.c \
-stm32469i_discovery_lcd.c \
-stm32469i_discovery_sdram.c \
-stm32469i_discovery_ts.c)
+stm32469i_discovery_sdram.c)
 
 
 SOURCES += $(addprefix $(LOCAL_DIR), stm32f4xx_hal_msp.c \
@@ -13,7 +11,6 @@ stm32f4xx_it.c \
 stm32f4xx_hal_timebase_TIM.c \
 usart.c \
 gpio.c \
-freertos.c \
 fatfs.c \
 fmc.c \
 usbh_platform.c \

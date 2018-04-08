@@ -1,6 +1,6 @@
 /**
   ******************************************************************************
-  * @file    LCD_DSI/LCD_DSI_VideoMode_DoubleBuffering/Src/stm32f4xx_it.c 
+  * @file    Display/LCD_DSI_ImagesSlider/Src/stm32f4xx_it.c 
   * @author  MCD Application Team
   * @brief   Main Interrupt Service Routines.
   *          This file provides template for all exceptions handler and
@@ -48,7 +48,9 @@
   */
 
 /* Private typedef -----------------------------------------------------------*/
-extern LTDC_HandleTypeDef hltdc_eval;    
+extern LTDC_HandleTypeDef hltdc_eval;   
+extern DSI_HandleTypeDef hdsi_eval;
+QSPI_HandleTypeDef hqspi;
 /* Private define ------------------------------------------------------------*/
 /* Private macro -------------------------------------------------------------*/
 /* Private variables ---------------------------------------------------------*/
@@ -154,7 +156,8 @@ void PendSV_Handler(void)
   */
 void SysTick_Handler(void)
 {
-  HAL_IncTick();
+    HAL_IncTick();
+    HAL_SYSTICK_IRQHandler();
 }
 
 /******************************************************************************/
@@ -165,6 +168,16 @@ void SysTick_Handler(void)
 /******************************************************************************/
 
 /**
+  * @brief  This function handles External line 1 interrupt request.
+  * @param  None
+  * @retval None
+  */
+void EXTI0_IRQHandler(void)
+{
+  HAL_GPIO_EXTI_IRQHandler(WAKEUP_BUTTON_PIN);
+}
+
+/**
   * @brief  This function handles LTDC interrupt request.
   * @param  None
   * @retval None
@@ -172,6 +185,32 @@ void SysTick_Handler(void)
 void LTDC_IRQHandler(void)
 {
   HAL_LTDC_IRQHandler(&hltdc_eval);
+}
+
+void LTDC_ER_IRQHandler(void)
+{ 
+  /* Check the interrupt and clear flag */
+  HAL_LTDC_IRQHandler(&hltdc_eval);
+
+}
+/**
+  * @brief  This function handles DSI Handler.
+  * @param  None
+  * @retval None
+  */
+void DSI_IRQHandler(void)
+{
+  HAL_DSI_IRQHandler(&hdsi_eval);
+}
+
+/**
+  * @brief  This function handles External line 15_10 interrupt request.
+  * @param  None
+  * @retval None
+  */
+void EXTI9_5_IRQHandler(void)
+{
+  HAL_GPIO_EXTI_IRQHandler(TS_INT_PIN);
 }
 
 /**

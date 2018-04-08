@@ -1,348 +1,368 @@
 /**
-  ******************************************************************************
-  * @file    LCD_DSI/LCD_DSI_VideoMode_DoubleBuffering/Src/main.c
-  * @author  MCD Application Team
-  * @brief   This example describes how to configure and use LCD DSI to display an image
-  *          of size WVGA in mode landscape (800x480) using the STM32F4xx HAL API and BSP.
-  ******************************************************************************
-  * @attention
-  *
-  * <h2><center>&copy; COPYRIGHT(c) 2017 STMicroelectronics</center></h2>
-  *
-  * Redistribution and use in source and binary forms, with or without modification,
-  * are permitted provided that the following conditions are met:
-  *   1. Redistributions of source code must retain the above copyright notice,
-  *      this list of conditions and the following disclaimer.
-  *   2. Redistributions in binary form must reproduce the above copyright notice,
-  *      this list of conditions and the following disclaimer in the documentation
-  *      and/or other materials provided with the distribution.
-  *   3. Neither the name of STMicroelectronics nor the names of its contributors
-  *      may be used to endorse or promote products derived from this software
-  *      without specific prior written permission.
-  *
-  * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
-  * AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
-  * IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
-  * DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE
-  * FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
-  * DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
-  * SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
-  * CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,
-  * OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
-  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
-  *
-  ******************************************************************************
-  */
-
+ ******************************************************************************
+ * @file           : main.c
+ * @brief          : Main program body
+ ******************************************************************************
+ * This notice applies to any and all portions of this file
+ * that are not between comment pairs USER CODE BEGIN and
+ * USER CODE END. Other portions of this file, whether
+ * inserted by the user or by software development tools
+ * are owned by their respective copyright owners.
+ *
+ * Copyright (c) 2018 STMicroelectronics International N.V.
+ * All rights reserved.
+ *
+ * Redistribution and use in source and binary forms, with or without
+ * modification, are permitted, provided that the following conditions are met:
+ *
+ * 1. Redistribution of source code must retain the above copyright notice,
+ *    this list of conditions and the following disclaimer.
+ * 2. Redistributions in binary form must reproduce the above copyright notice,
+ *    this list of conditions and the following disclaimer in the documentation
+ *    and/or other materials provided with the distribution.
+ * 3. Neither the name of STMicroelectronics nor the names of other
+ *    contributors to this software may be used to endorse or promote products
+ *    derived from this software without specific written permission.
+ * 4. This software, including modifications and/or derivative works of this
+ *    software, must execute solely and exclusively on microcontroller or
+ *    microprocessor devices manufactured by or for STMicroelectronics.
+ * 5. Redistribution and use of this software other than as permitted under
+ *    this license is void and will automatically terminate your rights under
+ *    this license.
+ *
+ * THIS SOFTWARE IS PROVIDED BY STMICROELECTRONICS AND CONTRIBUTORS "AS IS"
+ * AND ANY EXPRESS, IMPLIED OR STATUTORY WARRANTIES, INCLUDING, BUT NOT
+ * LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY, FITNESS FOR A
+ * PARTICULAR PURPOSE AND NON-INFRINGEMENT OF THIRD PARTY INTELLECTUAL PROPERTY
+ * RIGHTS ARE DISCLAIMED TO THE FULLEST EXTENT PERMITTED BY LAW. IN NO EVENT
+ * SHALL STMICROELECTRONICS OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT,
+ * INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
+ * LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA,
+ * OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF
+ * LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING
+ * NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE,
+ * EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+ *
+ ******************************************************************************
+ */
 /* Includes ------------------------------------------------------------------*/
 #include "main.h"
-#include "image_320x240_argb8888.h" 
+#include "stm32f4xx_hal.h"
+#include "cmsis_os.h"
+#include "crc.h"
+#include "dma2d.h"
+#include "dsihost.h"
+#include "fatfs.h"
+#include "i2c.h"
+#include "ltdc.h"
+#include "quadspi.h"
+#include "sai.h"
+#include "sdio.h"
+#include "tim.h"
+#include "usart.h"
+#include "usb_host.h"
+#include "gpio.h"
+#include "fmc.h"
+#include "FreeRTOS.h"
+#include "task.h"
+#include "stm32469i_discovery.h"
+#include "stm32469i_discovery_ts.h"
+#include "stm32469i_discovery_sdram.h"
+#include "stm32469i_discovery_sd.h"
+#include "stm32469i_discovery_lcd.h"
+#include "stm32469i_discovery_eeprom.h"
+#include "fonts.h"
+#include "image_320x240_argb8888.h"
 #include "life_augmented_argb8888.h"
-#include <string.h>
-#include <stdio.h>
 
-/** @addtogroup STM32F4xx_HAL_Examples
-  * @{
-  */
+/* Variables -----------------------------------------------------------------*/
+osThreadId defaultTaskHandle;
 
-
-/* Private typedef -----------------------------------------------------------*/
-extern LTDC_HandleTypeDef            hltdc_eval;
-static DMA2D_HandleTypeDef           hdma2d;
-
-/* Private define ------------------------------------------------------------*/
-/* Private macro -------------------------------------------------------------*/
-
-#define LAYER0_ADDRESS               (LCD_FB_START_ADDRESS)
-
-/* Private variables ---------------------------------------------------------*/
-static __IO int32_t  front_buffer   = 0;
-static __IO int32_t  pend_buffer   = -1;
-static uint32_t ImageIndex    = 0;
-
-static const uint32_t * Images[] = 
-{
-  image_320x240_argb8888,
-  life_augmented_argb8888,  
-};
-
-static const uint32_t Buffers[] = 
-{
-  LAYER0_ADDRESS,
-  LAYER0_ADDRESS + (800*480*4),
-};
 
 /* Private function prototypes -----------------------------------------------*/
 static void SystemClock_Config(void);
-static void OnError_Handler(uint32_t condition);
-static void CopyBuffer(uint32_t *pSrc, 
-                           uint32_t *pDst, 
-                           uint16_t x, 
-                           uint16_t y, 
-                           uint16_t xsize, 
-                           uint16_t ysize);
-static void LCD_BriefDisplay(void);
+//static void OnError_Handler(uint32_t condition);
 
-/* Private functions ---------------------------------------------------------*/
+/* Function prototypes -------------------------------------------------------*/
+void StartDefaultTask(void const * argument);
+
+extern void MX_FATFS_Init(void);
+extern void MX_USB_HOST_Init(void);
+
+
+/* Hook prototypes */
+void vApplicationIdleHook(void);
+void vApplicationStackOverflowHook(xTaskHandle xTask, signed char *pcTaskName);
+void vApplicationMallocFailedHook(void);
+
+/* Private function prototypes -----------------------------------------------*/
+void SystemClock_Config(void);
+void MX_FREERTOS_Init(void);
+
+
+extern int example1(void);
+
+/* USER CODE BEGIN PFP */
+/* Private function prototypes -----------------------------------------------*/
+
+/* USER CODE END PFP */
+
+/* USER CODE BEGIN 0 */
+
+/* USER CODE END 0 */
+
+int example1(void);
+
+extern sFONT Font24;
+//extern sFONT Font20;
+//extern sFONT Font16;
+//extern sFONT Font12;
+//extern sFONT Font8;
+sFONT *myfont = &Font8;
+
+/**
+ * @brief  The application entry point.
+ *
+ * @retval None
+ */
+int main(void)
+{
+    /* Reset of all peripherals, Initializes the Flash interface and the Systick. */
+    HAL_Init();
+    /* Configure the system clock */
+    SystemClock_Config();
+
+    /* Initialize all configured peripherals */
+    MX_GPIO_Init();
+    MX_CRC_Init();
+    MX_DMA2D_Init();
+    MX_DSIHOST_DSI_Init();
+    MX_FMC_Init();
+    MX_I2C1_Init();
+    MX_I2C2_Init();
+    MX_LTDC_Init();
+    MX_QUADSPI_Init();
+    MX_SAI1_Init();
+    MX_SDIO_SD_Init();
+    MX_TIM1_Init();
+    MX_USART3_UART_Init();
+    MX_USART6_UART_Init();
+
+    /* Call init function for freertos objects (in freertos.c) */
+    MX_FREERTOS_Init();
+
+    /* Start scheduler */
+    osKernelStart();
+
+    /* We should never get here as control is now taken by the scheduler */
+    /* Infinite loop */
+    while (1);
+}
+
 
 /**
   * @brief  On Error Handler on condition TRUE.
   * @param  condition : Can be TRUE or FALSE
   * @retval None
   */
-static void OnError_Handler(uint32_t condition)
+//static void OnError_Handler(uint32_t condition)
+//{
+//  if(condition)
+//  {
+//    BSP_LED_On(LED3);
+//    while(1) { ; } /* Blocking on error */
+//  }
+//}
+
+void StartDefaultTask(void const * argument)
 {
-  if(condition)
-  {
-    BSP_LED_On(LED3);
-    while(1) { ; } /* Blocking on error */
-  }
+
+    MX_FATFS_Init();
+    MX_USB_HOST_Init();
+
+    example1();
 }
 
-/**
-  * @brief  Main program
-  * @param  None
-  * @retval None
-  */
-int main(void)
+/* USER CODE BEGIN 2 */
+__weak void vApplicationIdleHook(void)
 {
-  uint8_t  lcd_status = LCD_OK;
+    /* vApplicationIdleHook() will only be called if configUSE_IDLE_HOOK is set
+     to 1 in FreeRTOSConfig.h. It will be called on each iteration of the idle
+     task. It is essential that code added to this hook function never attempts
+     to block in any way (for example, call xQueueReceive() with a block time
+     specified, or call vTaskDelay()). If the application makes use of the
+     vTaskDelete() API function (as this demo application does) then it is also
+     important that vApplicationIdleHook() is permitted to return to its calling
+     function, because it is the responsibility of the idle task to clean up
+     memory allocated by the kernel to any task that has since been deleted. */
+}
+/* USER CODE END 2 */
 
-  /* STM32F4xx HAL library initialization:
-    - Configure the Flash prefetch, instruction and Data caches
-    - Systick timer is configured by default as source of time base, but user 
-      can eventually implement his proper time base source (a general purpose 
-      timer for example or other time source), keeping in mind that Time base 
-      duration should be kept 1ms since PPP_TIMEOUT_VALUEs are defined and 
-      handled in milliseconds basis.
-    - Set NVIC Group Priority to 4
-    - Low Level Initialization: global MSP (MCU Support Package) initialization
-  */
-  HAL_Init();
-  
-  /* Configure the system clock to 180 MHz */
-  SystemClock_Config();
-  
-  /* Initialize the LCD   */
-  lcd_status = BSP_LCD_Init();
-  OnError_Handler(lcd_status != LCD_OK);  
-  
-  BSP_LCD_LayerDefaultInit(0, LAYER0_ADDRESS);     
-  BSP_LCD_SelectLayer(0); 
-  
-  /* Set LTDC Line Event  */
-  HAL_LTDC_ProgramLineEvent(&hltdc_eval, 0);
-  
-  /* Display example brief   */
-  LCD_BriefDisplay();
-  
-  /* Copy Buffer 0 into buffer 1, so only image area to be redrawn later */
-  CopyBuffer((uint32_t *)Buffers[0], (uint32_t *)Buffers[1], 0, 0, 800, 480);
-  
-  /* Infinite loop */
-  while (1)
-  {
-    if(pend_buffer < 0)
-    {
-      /* Prepare back buffer */     
-      CopyBuffer((uint32_t *)Images[ImageIndex++], (uint32_t *)Buffers[1- front_buffer], 240, 160, 320, 240);
-      pend_buffer = 1- front_buffer;
+/* USER CODE BEGIN 4 */
+__weak void vApplicationStackOverflowHook(xTaskHandle xTask,
+        signed char *pcTaskName)
+{
+    /* Run time stack overflow checking is performed if
+     configCHECK_FOR_STACK_OVERFLOW is defined to 1 or 2. This hook function is
+     called if a stack overflow is detected. */
+}
+/* USER CODE END 4 */
 
-      if(ImageIndex >= 2)
-      {
-        ImageIndex = 0;
-      }
-  
-      /* Wait some time before switching to next stage */
-      HAL_Delay(2000); 
-    }  
+/* USER CODE BEGIN 5 */
+__weak void vApplicationMallocFailedHook(void)
+{
+    /* vApplicationMallocFailedHook() will only be called if
+     configUSE_MALLOC_FAILED_HOOK is set to 1 in FreeRTOSConfig.h. It is a hook
+     function that will get called if a call to pvPortMalloc() fails.
+     pvPortMalloc() is called internally by the kernel whenever a task, queue,
+     timer or semaphore is created. It is also called by various parts of the
+     demo application. If heap_1.c or heap_2.c are used, then the size of the
+     heap available to pvPortMalloc() is defined by configTOTAL_HEAP_SIZE in
+     FreeRTOSConfig.h, and the xPortGetFreeHeapSize() API function can be used
+     to query the size of free heap space that remains (although it does not
+     provide information on how the remaining heap might be fragmented). */
+}
+/* USER CODE END 5 */
 
-  }
+/* Init FreeRTOS */
+
+void MX_FREERTOS_Init(void)
+{
+    /* Create the thread(s) */
+    /* definition and creation of defaultTask */
+    osThreadDef(defaultTask, StartDefaultTask, osPriorityNormal, 0, 4096);
+    defaultTaskHandle = osThreadCreate(osThread(defaultTask), NULL);
 }
 
-/**
-  * @brief  Line Event callback.
-  * @param  hltdc: pointer to a LTDC_HandleTypeDef structure that contains
-  *                the configuration information for the LTDC.
-  * @retval None
-  */
-void HAL_LTDC_LineEventCallback(LTDC_HandleTypeDef *hltdc)
+void SystemClock_Config(void)
 {
-  if(pend_buffer >= 0)
-  {  
-    LTDC_LAYER(hltdc, 0)->CFBAR = ((uint32_t)Buffers[pend_buffer]);
-    __HAL_LTDC_RELOAD_IMMEDIATE_CONFIG(hltdc); 
-    
-    front_buffer = pend_buffer;  
-    pend_buffer = -1;
-  }
-  
-  HAL_LTDC_ProgramLineEvent(hltdc, 0);   
-}
 
-/**
-  * @brief  System Clock Configuration
-  *         The system Clock is configured as follow : 
-  *            System Clock source            = PLL (HSE)
-  *            SYSCLK(Hz)                     = 180000000
-  *            HCLK(Hz)                       = 180000000
-  *            AHB Prescaler                  = 1
-  *            APB1 Prescaler                 = 4
-  *            APB2 Prescaler                 = 2
-  *            HSE Frequency(Hz)              = 8000000
-  *            PLL_M                          = 8
-  *            PLL_N                          = 360
-  *            PLL_P                          = 2
-  *            PLL_Q                          = 7
-  *            PLL_R                          = 6
-  *            VDD(V)                         = 3.3
-  *            Main regulator output voltage  = Scale1 mode
-  *            Flash Latency(WS)              = 5
-  * @param  None
-  * @retval None
-  */
-static void SystemClock_Config(void)
-{
-  RCC_ClkInitTypeDef RCC_ClkInitStruct;
   RCC_OscInitTypeDef RCC_OscInitStruct;
-  HAL_StatusTypeDef ret = HAL_OK;
+  RCC_ClkInitTypeDef RCC_ClkInitStruct;
 
-  /* Enable Power Control clock */
+    /**Configure the main internal regulator output voltage 
+    */
   __HAL_RCC_PWR_CLK_ENABLE();
 
-  /* The voltage scaling allows optimizing the power consumption when the device is 
-     clocked below the maximum system frequency, to update the voltage scaling value 
-     regarding system frequency refer to product datasheet.  */
   __HAL_PWR_VOLTAGESCALING_CONFIG(PWR_REGULATOR_VOLTAGE_SCALE1);
 
-  /* Enable HSE Oscillator and activate PLL with HSE as source */
+    /**Initializes the CPU, AHB and APB busses clocks 
+    */
   RCC_OscInitStruct.OscillatorType = RCC_OSCILLATORTYPE_HSE;
   RCC_OscInitStruct.HSEState = RCC_HSE_ON;
   RCC_OscInitStruct.PLL.PLLState = RCC_PLL_ON;
   RCC_OscInitStruct.PLL.PLLSource = RCC_PLLSOURCE_HSE;
-#if defined(USE_STM32469I_DISCO_REVA)
   RCC_OscInitStruct.PLL.PLLM = 25;
-#else
-  RCC_OscInitStruct.PLL.PLLM = 8;
-#endif /* USE_STM32469I_DISCO_REVA */
   RCC_OscInitStruct.PLL.PLLN = 360;
   RCC_OscInitStruct.PLL.PLLP = RCC_PLLP_DIV2;
-  RCC_OscInitStruct.PLL.PLLQ = 7;
-  RCC_OscInitStruct.PLL.PLLR = 6;
-  
-  ret = HAL_RCC_OscConfig(&RCC_OscInitStruct);
-  if(ret != HAL_OK)
+  RCC_OscInitStruct.PLL.PLLQ = 4;
+  RCC_OscInitStruct.PLL.PLLR = 2;
+  if (HAL_RCC_OscConfig(&RCC_OscInitStruct) != HAL_OK)
   {
-    while(1) { ; }
+    _Error_Handler(__FILE__, __LINE__);
   }
-  
-  /* Activate the OverDrive to reach the 180 MHz Frequency */  
-  ret = HAL_PWREx_EnableOverDrive();
-  if(ret != HAL_OK)
+
+    /**Activate the Over-Drive mode 
+    */
+  if (HAL_PWREx_EnableOverDrive() != HAL_OK)
   {
-    while(1) { ; }
+    _Error_Handler(__FILE__, __LINE__);
   }
-  
-  /* Select PLL as system clock source and configure the HCLK, PCLK1 and PCLK2 clocks dividers */
-  RCC_ClkInitStruct.ClockType = (RCC_CLOCKTYPE_SYSCLK | RCC_CLOCKTYPE_HCLK | RCC_CLOCKTYPE_PCLK1 | RCC_CLOCKTYPE_PCLK2);
+
+    /**Initializes the CPU, AHB and APB busses clocks 
+    */
+  RCC_ClkInitStruct.ClockType = RCC_CLOCKTYPE_HCLK|RCC_CLOCKTYPE_SYSCLK
+                              |RCC_CLOCKTYPE_PCLK1|RCC_CLOCKTYPE_PCLK2;
   RCC_ClkInitStruct.SYSCLKSource = RCC_SYSCLKSOURCE_PLLCLK;
   RCC_ClkInitStruct.AHBCLKDivider = RCC_SYSCLK_DIV1;
-  RCC_ClkInitStruct.APB1CLKDivider = RCC_HCLK_DIV4;  
-  RCC_ClkInitStruct.APB2CLKDivider = RCC_HCLK_DIV2;  
-  
-  ret = HAL_RCC_ClockConfig(&RCC_ClkInitStruct, FLASH_LATENCY_5);
-  if(ret != HAL_OK)
+  RCC_ClkInitStruct.APB1CLKDivider = RCC_HCLK_DIV4;
+  RCC_ClkInitStruct.APB2CLKDivider = RCC_HCLK_DIV2;
+
+  if (HAL_RCC_ClockConfig(&RCC_ClkInitStruct, FLASH_LATENCY_5) != HAL_OK)
   {
-    while(1) { ; }
+    _Error_Handler(__FILE__, __LINE__);
   }
+
+    /**Configure the Systick interrupt time 
+    */
+  HAL_SYSTICK_Config(HAL_RCC_GetHCLKFreq()/1000);
+
+    /**Configure the Systick 
+    */
+  HAL_SYSTICK_CLKSourceConfig(SYSTICK_CLKSOURCE_HCLK);
+
+  /* SysTick_IRQn interrupt configuration */
+  HAL_NVIC_SetPriority(SysTick_IRQn, 0, 0);
 }
 
+
+/* USER CODE BEGIN 4 */
+
+/* USER CODE END 4 */
+
 /**
-  * @brief  Display Example description.
-  * @param  None
-  * @retval None
-  */
-static void LCD_BriefDisplay(void)
+ * @brief  Period elapsed callback in non blocking mode
+ * @note   This function is called  when TIM6 interrupt took place, inside
+ * HAL_TIM_IRQHandler(). It makes a direct call to HAL_IncTick() to increment
+ * a global variable "uwTick" used as application time base.
+ * @param  htim : TIM handle
+ * @retval None
+ */
+void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
 {
-  BSP_LCD_Clear(LCD_COLOR_WHITE);
-  BSP_LCD_SetBackColor(LCD_COLOR_BLUE);
-  BSP_LCD_SetTextColor(LCD_COLOR_BLUE);
-  BSP_LCD_FillRect(0, 0, 800, 112);  
-  BSP_LCD_SetTextColor(LCD_COLOR_WHITE);
-  BSP_LCD_DisplayStringAtLine(1, (uint8_t *)"        LCD_DSI_VideoMode_DoubleBuffering");
-  BSP_LCD_SetFont(&Font16);
-  BSP_LCD_DisplayStringAtLine(4, (uint8_t *)"This example shows how to display images on LCD DSI using two buffers");
-  BSP_LCD_DisplayStringAtLine(5, (uint8_t *)"one for display and the other for draw     ");   
-  
+    /* USER CODE BEGIN Callback 0 */
+
+    /* USER CODE END Callback 0 */
+    if (htim->Instance == TIM6)
+    {
+        HAL_IncTick();
+    }
+    /* USER CODE BEGIN Callback 1 */
+
+    /* USER CODE END Callback 1 */
 }
 
 /**
-  * @brief  Converts a line to an ARGB8888 pixel format.
-  * @param  pSrc: Pointer to source buffer
-  * @param  pDst: Output color
-  * @param  xSize: Buffer width
-  * @param  ColorMode: Input color mode   
-  * @retval None
-  */
-static void CopyBuffer(uint32_t *pSrc, uint32_t *pDst, uint16_t x, uint16_t y, uint16_t xsize, uint16_t ysize)
-{   
-  
-  uint32_t destination = (uint32_t)pDst + (y * 800 + x) * 4;
-  uint32_t source      = (uint32_t)pSrc;
-  
-  /*##-1- Configure the DMA2D Mode, Color Mode and output offset #############*/ 
-  hdma2d.Init.Mode         = DMA2D_M2M;
-  hdma2d.Init.ColorMode    = DMA2D_ARGB8888;
-  hdma2d.Init.OutputOffset = 800 - xsize;     
-  
-  /*##-2- DMA2D Callbacks Configuration ######################################*/
-  hdma2d.XferCpltCallback  = NULL;
-  
-  /*##-3- Foreground Configuration ###########################################*/
-  hdma2d.LayerCfg[1].AlphaMode = DMA2D_NO_MODIF_ALPHA;
-  hdma2d.LayerCfg[1].InputAlpha = 0xFF;
-  hdma2d.LayerCfg[1].InputColorMode = DMA2D_INPUT_ARGB8888;
-  hdma2d.LayerCfg[1].InputOffset = 0;
-
-  hdma2d.Instance          = DMA2D; 
-   
-  /* DMA2D Initialization */
-  if(HAL_DMA2D_Init(&hdma2d) == HAL_OK) 
-  {
-    if(HAL_DMA2D_ConfigLayer(&hdma2d, 1) == HAL_OK) 
+ * @brief  This function is executed in case of error occurrence.
+ * @param  file: The file name as string.
+ * @param  line: The line in file as a number.
+ * @retval None
+ */
+void _Error_Handler(char *file, int line)
+{
+    (void) file;
+    (void) line;
+    /* USER CODE BEGIN Error_Handler_Debug */
+    /* User can add his own implementation to report the HAL error return state */
+    while (1)
     {
-      if (HAL_DMA2D_Start(&hdma2d, source, destination, xsize, ysize) == HAL_OK)
-      {
-        /* Polling For DMA transfer */  
-        HAL_DMA2D_PollForTransfer(&hdma2d, 100);
-      }
     }
-  }   
+    /* USER CODE END Error_Handler_Debug */
 }
 
 #ifdef  USE_FULL_ASSERT
-
 /**
-  * @brief  Reports the name of the source file and the source line number
-  *         where the assert_param error has occurred.
-  * @param  file: pointer to the source file name
-  * @param  line: assert_param error line source number
-  * @retval None
-  */
-void assert_failed(uint8_t *file, uint32_t line)
+ * @brief  Reports the name of the source file and the source line number
+ *         where the assert_param error has occurred.
+ * @param  file: pointer to the source file name
+ * @param  line: assert_param error line source number
+ * @retval None
+ */
+void assert_failed(uint8_t* file, uint32_t line)
 {
-  /* User can add his own implementation to report the file name and line number,
-     ex: printf("Wrong parameters value: file %s on line %d\r\n", file, line) */
-
-  /* Infinite loop */
-  while (1)
-  {
-  }
+    /* USER CODE BEGIN 6 */
+    /* User can add his own implementation to report the file name and line number,
+     tex: printf("Wrong parameters value: file %s on line %d\r\n", file, line) */
+    /* USER CODE END 6 */
 }
-#endif
+#endif /* USE_FULL_ASSERT */
 
 /**
-  * @}
-  */
+ * @}
+ */
+
+/**
+ * @}
+ */
 
 /************************ (C) COPYRIGHT STMicroelectronics *****END OF FILE****/

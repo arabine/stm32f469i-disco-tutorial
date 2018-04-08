@@ -72,12 +72,12 @@
 
 /* Includes ------------------------------------------------------------------*/
 #include "stm32469i_discovery_lcd.h"
-#include "../../../Utilities/Fonts/fonts.h"
-#include "../../../Utilities/Fonts/font24.c"
-#include "../../../Utilities/Fonts/font20.c"
-#include "../../../Utilities/Fonts/font16.c"
-#include "../../../Utilities/Fonts/font12.c"
-#include "../../../Utilities/Fonts/font8.c"
+#include "fonts.h"
+#include "font24.c"
+#include "font20.c"
+#include "font16.c"
+#include "font12.c"
+#include "font8.c"
 
 /** @addtogroup BSP
   * @{
@@ -1047,16 +1047,19 @@ void BSP_LCD_DrawBitmap(uint32_t Xpos, uint32_t Ypos, uint8_t *pbmp)
   uint32_t InputColorMode = 0;
 
   /* Get bitmap data address offset */
-  index = pbmp[10] + (pbmp[11] << 8) + (pbmp[12] << 16)  + (pbmp[13] << 24);
+  index = *(__IO uint16_t *) (pbmp + 10);
+  index |= (*(__IO uint16_t *) (pbmp + 12)) << 16;
 
   /* Read bitmap width */
-  width = pbmp[18] + (pbmp[19] << 8) + (pbmp[20] << 16)  + (pbmp[21] << 24);
+  width = *(uint16_t *) (pbmp + 18);
+  width |= (*(uint16_t *) (pbmp + 20)) << 16;
 
   /* Read bitmap height */
-  height = pbmp[22] + (pbmp[23] << 8) + (pbmp[24] << 16)  + (pbmp[25] << 24);
+  height = *(uint16_t *) (pbmp + 22);
+  height |= (*(uint16_t *) (pbmp + 24)) << 16;
 
   /* Read bit/pixel */
-  bit_pixel = pbmp[28] + (pbmp[29] << 8);
+  bit_pixel = *(uint16_t *) (pbmp + 28);
 
   /* Set the address */
   Address = hltdc_eval.LayerCfg[ActiveLayer].FBStartAdress + (((BSP_LCD_GetXSize()*Ypos) + Xpos)*(4));
